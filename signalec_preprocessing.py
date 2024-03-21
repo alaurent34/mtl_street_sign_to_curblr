@@ -10,7 +10,7 @@ from shapely import wkt
 from itertools import repeat
 from geopy.distance import geodesic
 
-from tools.geohelper import rtreenearest
+from tools.geom import rtreenearest
 from tools.geohelper import right_or_left
 from tools.geohelper import distance, vectorized_dist
 from tools.geohelper import MONTREAL_CRS
@@ -19,20 +19,20 @@ from tools.geohelper import MONTREAL_CRS
 def load_wkt(wkt_str):
     """ Return shapely geometry from string.
     """
-    try: 
+    try:
         return wkt.loads(wkt_str)
     except ValueError:
         return None
 
 def _detect_unspecified_end(signs, side_of_street='side_of_street', chain='chainage',
                             code_rpa='CODE_RPA', dist='dist_on_road', geom_col='geometry'):
-    
+
     """ Detect if there is a regulation that have no ending while a new regulation appear
 
     Example :
 
     If we have this signalisation on the road, and that B and A cannot apply on
-    the same street then we end A on first B presence and start B on first B 
+    the same street then we end A on first B presence and start B on first B
     prensence as shown above:
 
     Before:
@@ -51,10 +51,10 @@ def _detect_unspecified_end(signs, side_of_street='side_of_street', chain='chain
     signs = signs.copy()
     signs = signs.sort_values([side_of_street, dist])
     signs = signs.reset_index(drop=False)
-    
+
     insert = []
     update = []
-    
+
     for i in range(signs.shape[0]-1):
         if signs.loc[i, side_of_street] != signs.loc[i+1, side_of_street]:
             continue
@@ -70,10 +70,10 @@ def _detect_unspecified_end(signs, side_of_street='side_of_street', chain='chain
                 row_to_insert[['X', 'Y']] = signs.loc[i+1,['X', 'Y']]
                 # save the row
                 insert.append(row_to_insert)
-                
+
                 # state the other pannel as begining
                 update.append(signs.loc[i+1, 'index'])
-            
+
     return insert, update
 
 def clean_street_cleaning_signs(points_gdf, road_df, side_of_street='side_of_street',
@@ -84,15 +84,15 @@ def clean_street_cleaning_signs(points_gdf, road_df, side_of_street='side_of_str
                                   crs_points='epsg:4326', crs_roads='epsg:4326'):
     """This function handle street cleaning sign error on the street curb. As different street
     cleaning period cannot apply to the same street side. If there is two different sign,
-    one should end before the other begin. 
+    one should end before the other begin.
     """
-    
+
     road_df = road_df.copy().to_crs(MONTREAL_CRS)
     points_gdf = points_gdf.copy().to_crs(MONTREAL_CRS)
     points = []
-    
+
     for seg_id, subpoints in points_gdf.groupby(road_id):
-    
+
         roads_ls = road_df.loc[road_df[road_id] == seg_id, road_geom].iloc[0]
         road_circ = road_df.loc[road_df[road_id] == seg_id, circulation_dir].iloc[0]
 
@@ -122,11 +122,11 @@ def clean_street_cleaning_signs(points_gdf, road_df, side_of_street='side_of_str
 
         subpoints = pd.concat([subpoints, pd.DataFrame(insertions)], axis=0)
         points.append(subpoints)
-    
+
     points_gdf = pd.concat(points, axis=0)
     points_gdf = gpd.GeoDataFrame(points_gdf, geometry=point_geom, crs=MONTREAL_CRS)
     points_gdf = points_gdf.to_crs(crs_points)
-    
+
     return points_gdf
 
 
@@ -147,9 +147,9 @@ def main(signs, geobase, limit):
 
     filtered_signs = signs[filter_].copy().reset_index(drop=True)
 
-    # Transform fleche to chaining enum sharedstreet standard 
+    # Transform fleche to chaining enum sharedstreet standard
     #                               {1:start, 2:middle, 3:end}
-    fleche_map={ 
+    fleche_map={
         0: {
             -1:
                 {0:2,  # no arrow -> middle
@@ -180,11 +180,14 @@ def main(signs, geobase, limit):
                 2:1,   # left arrow -> start
                 3:3}   # right arrow -> end
         },
-        
+
     }
 
     # Compute closest road to each signs
-    filtered_signs = rtreenearest(filtered_signs, geobase, ['road_geom', 'SENS_CIR', 'ID_TRC'])
+    geobase_bis = geobase.copy()
+    geobase_bis = geobase_bis.rename_geometry('geometry')
+    geobase_bis['road_geom'] = geobase_bis.geometry.copy()
+    filtered_signs = rtreenearest(filtered_signs, geobase_bis, ['road_geom', 'SENS_CIR', 'ID_TRC'])
     # Compute side of street of a sign on a street
     filtered_signs['side_of_street'] = list(map(right_or_left, filtered_signs.road_geom, filtered_signs.geometry))
     # Compute chaining of each sign on a roads

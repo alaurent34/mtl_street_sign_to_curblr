@@ -54,17 +54,17 @@ def post_processing(buff_length=7):
     res = []
     g = paid_parking_buff.sort_values(['pp_sk_d_troncon', 'pp_no_place']).groupby(['referenceId', 'pp_sk_d_troncon', 'cluster_id'])
 
-    for _, data in g: 
+    for _, data in g:
         if data.shape[0] == 1:
             res.append(list(data[columns].values[0]))
             continue
-            
+
         assert data['pp_tarif_hr'].unique().shape[0] == 1, f'Error in clustering (Tarif) : {data}'
         assert data['referenceId'].unique().shape[0] == 1, f'Error in clustering (ReferenceId) : {data}'
         assert data['referenceId'].unique().shape[0] == 1, f'Error in clustering (SideOfStreet) : {data}'
         assert data['pp_sk_d_troncon'].unique().shape[0] == 1, f'Error in clustering (pp_sk_d_troncon) : {data}'
-        
-        place_to_line = linemerge(data['geometry'].values)
+
+        place_to_line = linemerge(data['geometry'].to_list())
         to_add = [
             data['referenceId'].iloc[0],
             data['sideOfStreet'].iloc[0],
