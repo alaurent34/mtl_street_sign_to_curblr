@@ -73,7 +73,7 @@ def preprocess_hydrants(datas):
     print(f'Preprocessing {HYDRANTS_NAME} ...')
     hydrants = datas[HYDRANTS_NAME].copy()
     if not datas[GEO_LIMIT_NAME].empty:
-        hydrants = gpd.sjoin(hydrants, datas[GEO_LIMIT_NAME], how='inner', op='intersects')
+        hydrants = gpd.sjoin(hydrants, datas[GEO_LIMIT_NAME], how='inner', predicate='intersects')
     hydrants_path = os.path.join(OUTPUT_DIR, 'hydrants_preprocessed.geojson')
     hydrants_shst_path = os.path.join(SHST_OUTPUT_DIR, 'hydrants_preprocessed_shst.geojson')
     hydrants.to_file(hydrants_path, driver='GeoJSON')
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         print('Nothing to do.')
         sys.exit(2)
     if requires_preprocessing:
-        should_convert = preprocessing()
+        should_convert = preprocessing() and should_convert
     if should_convert:
         convert()
     sys.exit(0)
