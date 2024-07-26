@@ -1,0 +1,3 @@
+[] - Fix 'Error: coordinates must contain numbers' when running `shst`
+[] - Fix entries that do not have corresponding keys in fleche_map in signalec_preprocessing.py
+[] - Fix sql loading

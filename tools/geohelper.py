@@ -160,12 +160,6 @@ def ckdnearest(gdfA, gdfB, gdfB_cols=['Place']):
     return gdf
 
 def rtreenearest(gdfA, gdfB, gdfB_cols=['ID']):
-    """ There is a implementation change in geopandas.sindex.nearest that will take change in next upgrade.
-
-    FutureWarning: sindex.nearest using the rtree backend was not previously documented and this behavior
-    is deprecated in favor of matching the function signature provided by the pygeos backend (see
-    PyGEOSSTRTreeIndex.nearest for details)
-    """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return warning_rtreenearest(gdfA, gdfB, gdfB_cols)
@@ -174,13 +168,12 @@ def warning_rtreenearest(gdfA, gdfB, gdfB_cols=['ID']):
     """ Compute the spatial jointure on two GeoDataFrame based on the operation "nearest".
     """
     A = gdfA.geometry.to_list()
-    rtree = gdfB.sindex
-    
+
     idx = []
     dist_l = []
     for point in A:
-        road_i = list(rtree.nearest((point.x, point.y), 4))
-        roads = gdfB.loc[road_i, gdfB.geometry.name].to_list()
+        road_i = list(gdfB.sindex.nearest(point))[:4]
+        roads = gdfB.loc[road_i[1], gdfB.geometry.name].to_list()
 
         dist = np.inf
         id_nearest = 0
@@ -190,14 +183,13 @@ def warning_rtreenearest(gdfA, gdfB, gdfB_cols=['ID']):
             vector = LineString([point, place_projected])
             # plus coure distance de la place à la route
             dist_tmp = vector.length
-        
+
             if dist_tmp < dist:
                 dist = dist_tmp
                 id_nearest = j
-                
-        idx.append(road_i[id_nearest])
+
+        idx.append(road_i[1][id_nearest])
         dist_l.append(dist)
-        
-    gdf = pd.concat(
+
+    return pd.concat(
         [gdfA, gdfB.loc[idx, gdfB_cols].reset_index(drop=True), pd.Series(dist_l, name='dist')], axis=1)
-    return gdf
