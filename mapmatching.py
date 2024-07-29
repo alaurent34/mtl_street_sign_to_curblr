@@ -147,9 +147,15 @@ def point_to_line(data, roads, sequence_field, match_field,
     lines_df.loc[mask, 'end'] = length - lines_df.loc[mask, 'end']
 
     # find geometry
-    lines_df['geometry'] = lines_df.apply(lambda x: LineString([
-            x.road_geom.interpolate(x.start), x.road_geom.interpolate(x.end)
-        ]), axis=1)
+    lines_df['geometry'] = lines_df.apply(
+            lambda x: LineString([
+                x.road_geom.interpolate(x.start),
+                x.road_geom.interpolate(x.end)
+            ]) if x.start < x.end else \
+                      LineString([
+                x.road_geom.interpolate(x.end),
+                x.road_geom.interpolate(x.start)
+            ]), axis=1)
 
     lines_df = gpd.GeoDataFrame(lines_df, geometry='geometry', crs=roads.crs)
     lines_df.drop(columns='road_geom', inplace=True)
