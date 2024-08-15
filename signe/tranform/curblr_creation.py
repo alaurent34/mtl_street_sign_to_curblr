@@ -2,18 +2,16 @@
 # coding: utf-8
 
 import re
-import os
 import json
 import datetime
 import pandas as pd
 import geopandas as gpd
 from shapely import wkt
 
-from helpers.curblr import CurbLRHelper
-from signalec.pannonceaux_rpa import PANONCEAUX
+from signe.preprocessing.signalec.pannonceaux_rpa import PANONCEAUX
 
 def load_wkt(wkt_str):
-    try: 
+    try:
         return wkt.loads(wkt_str)
     except ValueError:
         return None
@@ -28,7 +26,7 @@ def update_pannonceau(rpa, pannonceau):
             rpa[key].extend(value)
         if key == 'rule':
             for rule_k, rule_v in value.items():
-                rpa[key][rule_k] = rule_v 
+                rpa[key][rule_k] = rule_v
 
 
 def main():
@@ -43,7 +41,7 @@ def main():
     signs = signs[filter_].copy().reset_index(drop=True)
 
     # Get SharedStreets processed signs
-    with open("./output/shst/signs_preprocessed.joined.geojson") as f: 
+    with open("./output/shst/signs_preprocessed.joined.geojson") as f:
         signs_shst = json.load(f)
 
     # Get RPA to Curb data
@@ -76,9 +74,9 @@ def main():
             gate = 1
             if re.match(r'.*PANONCEAU.*', row['DESCRIPTION_RPA']):
                 this_pan = 1
-                gate = 0 
+                gate = 0
                 panon_rpa = row['CODE_RPA']
-                
+
             if this_pan == 1 and gate == 1:
                 this_pan = 0
                 if panon_rpa in panonceaux.keys():
@@ -151,7 +149,7 @@ def main():
                         "timesOfDay": [
                             {"from": "09:00", "to": "21:00"}
                         ]
-                    }],               
+                    }],
                     "payment":{
                         'rate':[{
                             'fees':[feature['properties']['pp_tarif_hr']],

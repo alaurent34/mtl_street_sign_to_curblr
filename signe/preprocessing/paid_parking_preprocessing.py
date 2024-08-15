@@ -1,32 +1,50 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[279]:
-
-
-import numpy as np
 import pandas as pd
 import geopandas as gpd
-import pymssql
 
 from shapely.ops import linemerge
-from shapely.geometry import LineString,MultiLineString
+from shapely.geometry import (
+    LineString,
+    MultiLineString
+)
+
 
 def main(paid_parking, limit):
+    """_summary_
 
+    Parameters
+    ----------
+    paid_parking : _type_
+        _description_
+    limit : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     paid_parking = gpd.GeoDataFrame(paid_parking, geometry=gpd.points_from_xy(paid_parking.Longitude, paid_parking.Latitude), crs='epsg:4326')
     if not limit.empty:
         paid_parking = gpd.sjoin(paid_parking, limit, op='within', how='inner').drop(columns='index_right')
 
     return  paid_parking
 
-def post_processing(buff_length=7):
 
+def post_processing(buff_length=7):
+    """_summary_
+
+    Parameters
+    ----------
+    buff_length : int, optional
+        _description_, by default 7
+    """
     place_loc = gpd.read_file('./output/shst/paid_parking_preprocessed.matched.geojson')
 
     place_loc['start'] = place_loc.location - (buff_length/2)
     place_loc['end'] = place_loc.location + (buff_length/2)
-
 
     paid_parking_buff = gpd.read_file('./output/shst/paid_parking_preprocessed.buffered.geojson')
     paid_parking_buff[['loc_start', 'loc_end']] = place_loc[['start', 'end']]

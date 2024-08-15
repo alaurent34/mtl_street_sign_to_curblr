@@ -10,42 +10,138 @@ Created on Wed Jun 9 2021 10:12:56
 import math
 from operator import itemgetter
 import itertools
-from typing import List
-from numpy.typing import ArrayLike
+from typing import List, Tuple
 
 import shapely
 import numpy as np
+from numpy.typing import ArrayLike
 import pandas as pd
 import geopandas
-from geopy.distance import geodesic
-from pyproj import CRS
+from geopy.distance import geodesic, great_circle
 from scipy.spatial import cKDTree
+from pyproj import CRS
 
-
+EARTH_RADIUS = 6371000
 UNIVERSAL_CRS = CRS.from_epsg(3857)
 DEFAULT_CRS = CRS.from_epsg(4326)
 MONTREAL_CRS = CRS.from_epsg(32188)
 
-EARTH_RADIUS = 6371000
+
+Point = Tuple[float, float]
 
 
-def vector_left_or_right(vector: shapely.LineString,
-                         point: shapely.LineString
-                         )->int:
+def localisation_distance(loc1: Point, loc2: Point):
+    """Default distance measure between two localisations
+
+    Parameters
+    ----------
+    loc1 : Tuple[float, float]
+        first localisation. In latitude, longitude decimal format.
+    loc2 : Tuple[float, float]
+        second localisation. In latitude, longitude decimal format.
+
+    Returns
+    -------
+    float
+        distance in meter
+    """
+    return geodesic_distance(loc1, loc2)
+
+
+def great_circle_distance(loc1: Point, loc2: Point) -> float:
+    """Great circle formula between two localisations
+
+    Parameters
+    ----------
+    loc1 : Tuple[float, float]
+        first localisation. In latitude, longitude decimal format.
+    loc2 : Tuple[float, float]
+        second localisation. In latitude, longitude decimal format.
+
+    Returns
+    -------
+    float
+        great circle distance in meter
+    """
+
+    return great_circle(loc1[::-1], loc2[::-1]).m
+
+
+def geodesic_distance(loc1: Point, loc2: Point) -> float:
+    """Geodesic formula between two localisations
+
+    Parameters
+    ----------
+    loc1 : Tuple[float, float]
+        first localisation. In latitude, longitude decimal format.
+    loc2 : Tuple[float, float]
+        second localisation. In latitude, longitude decimal format.
+
+    Returns
+    -------
+    float
+        geodesic distance in meter
+    """
+
+    return geodesic(loc1[::-1], loc2[::-1]).m
+
+
+def haversine_distance(loc1: Point, loc2: Point) -> float:
+    """Haversine formula between two localisations
+
+    Parameters
+    ----------
+    loc1 : Tuple[float, float]
+        first localisation. In latitude, longitude decimal format.
+    loc2 : Tuple[float, float]
+        second localisation. In latitude, longitude decimal format.
+
+    Returns
+    -------
+    float
+        haversine distance in meters
+    """
+    ""
+
+    lat1, lon1 = loc1
+    lat2, lon2 = loc2
+
+    # convert to radians
+    lon1 = lon1 * math.pi / 180.0
+    lon2 = lon2 * math.pi / 180.0
+    lat1 = lat1 * math.pi / 180.0
+    lat2 = lat2 * math.pi / 180.0
+
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = (math.sin(dlat/2))**2 + math.cos(lat1) * math.cos(lat2) * (math.sin(dlon/2.0))**2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0-a))
+    km = EARTH_RADIUS * c
+
+    return km * 1000
+
+
+def vector_left_or_right(
+    vector: shapely.LineString,
+    point: shapely.LineString
+) -> int:
     """
     Determines if a point is to the right or left of a vector.
 
     Parameters
     ----------
     vector : shapely.LineString
-        The vector to compare. The object must be made of a maximum of two points.
+        The vector to compare. The object must be made of a maximum of two
+        points.
     point : shapely.LineString
         The point to compare.
 
     Raises
     ------
     TypeError
-        vector is not a shapely.LineString object or point shapely.Point object.
+        vector is not a shapely.LineString object or point shapely.Point
+        object.
     ValueError
         The number of coordinates in vector is greater than 2.
 
@@ -58,13 +154,15 @@ def vector_left_or_right(vector: shapely.LineString,
             0 for "on the line" (neither right nor left)
             1 for "right"
     """
-    #RIGHT HAND RULE: Right of forwards+++++++; Left of forwards-------
+    # RIGHT HAND RULE: Right of forwards+++++++; Left of forwards-------
 
-    #Vectorial multiplication of both vectors gives us information about the
-    #orientation of the snapped vector
-    #To follow the right hand rule, we must use:
-    #       if z is (-), P is to the right of the spline and direction_y is thus +++++
-    #       if z is (+), P is to the left of the spline and direction_y is thus ----
+    # Vectorial multiplication of both vectors gives us information about the
+    # orientation of the snapped vector
+    # To follow the right hand rule, we must use:
+    #       if z is (-), P is to the right of the spline and direction_y
+    #       is thus +++++
+    #       if z is (+), P is to the left of the spline and direction_y
+    #       is thus ----
 
     if not isinstance(vector, shapely.LineString):
         raise TypeError(f'Expecting a shapely LineString object, received {vector.__class__}')
@@ -85,12 +183,13 @@ def vector_left_or_right(vector: shapely.LineString,
         return -1
     return 0
 
+
 def multipointobject_to_points(
-        multipointobject:shapely.geometry.base.BaseMultipartGeometry
-        )->List[shapely.Point]:
+    multipointobject: shapely.geometry.base.BaseMultipartGeometry
+) -> List[shapely.Point]:
     """
-    Convert the coordinates of a shapely multi point geometry object into a list
-    of shapely.Point objects
+    Convert the coordinates of a shapely multi point geometry object into a
+    list of shapely.Point objects
 
     Parameters
     ----------
@@ -106,7 +205,8 @@ def multipointobject_to_points(
     x_list,y_list = multipointobject.coords.xy
     return [shapely.Point(x_list[i], y_list[i]) for i in range(len(x_list))]
 
-def distance_norm_2(p_1:shapely.Point, p_2:shapely.Point)-> float:
+
+def norm_2_distance(p_1:shapely.Point, p_2:shapely.Point)-> float:
     """Calculate the 2-norm distance (also called the Euclidean distance) between
     two points.
 
@@ -124,6 +224,7 @@ def distance_norm_2(p_1:shapely.Point, p_2:shapely.Point)-> float:
     """
     _d = p_1-p_2
     return math.sqrt(_d.x**2+_d.y**2)
+
 
 def find_closest_to_point(candidates:shapely.geometry.base.BaseMultipartGeometry,
                           point:shapely.Point, great_circle:bool=True)-> shapely.LineString:
@@ -158,7 +259,7 @@ def find_closest_to_point(candidates:shapely.geometry.base.BaseMultipartGeometry
             if great_circle:
                 dist = geodesic((candidate.x, candidate.y), (point.x, point.y)).m
             else:
-                dist = distance_norm_2(candidate, point)
+                dist = norm_2_distance(candidate, point)
         else:
             dist = candidate.distance(point)
         if dist < closest[-1]:
@@ -166,6 +267,7 @@ def find_closest_to_point(candidates:shapely.geometry.base.BaseMultipartGeometry
         else:
             pass
     return closest[0]
+
 
 def vectorize(points:List[shapely.Point])->shapely.LineString:
     """
@@ -182,6 +284,7 @@ def vectorize(points:List[shapely.Point])->shapely.LineString:
 
     """
     return shapely.LineString(coordinates=points)
+
 
 def uv_coords(vector:shapely.LineString)->ArrayLike:
     """
@@ -209,6 +312,7 @@ def uv_coords(vector:shapely.LineString)->ArrayLike:
     d_x = vector.coords.xy[0][-1] - vector.coords.xy[0][0]
     d_y = vector.coords.xy[1][-1] - vector.coords.xy[1][0]
     return np.array([d_x, d_y])
+
 
 def dot_product(vector1:shapely.LineString, vector2:shapely.LineString)->float:
     """
@@ -240,6 +344,7 @@ def dot_product(vector1:shapely.LineString, vector2:shapely.LineString)->float:
     b_1, b_2 = uv_coords(vector2)
     return a_1*b_1 + a_2*b_2
 
+
 def normalize_vector(vector:shapely.LineString)->shapely.LineString:
 
     '''from first_point, computes the new last_point such as the lenght equals 1'''
@@ -247,13 +352,15 @@ def normalize_vector(vector:shapely.LineString)->shapely.LineString:
     p_1, _ = multipointobject_to_points(vector)
     return shapely.LineString(coordinates=[[p_1.x, p_1.y], [p_1.x + _u, p_1.y + _v]])
 
+
 def azimuth(point1:shapely.Point, point2:shapely.Point)->float:
     '''azimuth between 2 shapely points (interval 0 - 360)'''
     angle = np.arctan2(point2[0] - point1[0], point2[-1] - point1[1])
     return np.degrees(angle) if angle >= 0 else np.degrees(angle) + 360
 
+
 def line_azimuth(line: shapely.LineString | shapely.MultiLineString,
-                 reversed: bool = False
+                 reversed_line: bool = False
                  ) -> float:
     """
 
@@ -262,7 +369,7 @@ def line_azimuth(line: shapely.LineString | shapely.MultiLineString,
     ----------
     line : shapely.LineString | shapely.MultiLineString
         DESCRIPTION.
-    reversed : bool, optional
+    reversed_line : bool, optional
         DESCRIPTION. The default is False.
 
     Returns
@@ -271,11 +378,11 @@ def line_azimuth(line: shapely.LineString | shapely.MultiLineString,
         DESCRIPTION.
 
     """
-    #TODO: change "reversed" for "reverse"
     if isinstance(line, shapely.MultiLineString):
         return None
     line = list(line.coords)
-    return azimuth(line[0], line[-1]) if not reversed else azimuth(line[-1], line[0])
+    return azimuth(line[0], line[-1]) if not reversed_line else azimuth(line[-1], line[0])
+
 
 def angle_between_vectors(vector1:shapely.LineString, vector2:shapely.LineString,
                           as_degree:bool=False)-> float:
@@ -308,9 +415,11 @@ def angle_between_vectors(vector1:shapely.LineString, vector2:shapely.LineString
         return math.degrees(angle)
     return angle
 
-def multipointobject_left_or_right(multipointobject: shapely.MultiLineString | shapely.LineString,
-                                   point:shapely.Point
-                                   ) -> int:
+
+def multipointobject_left_or_right(
+    multipointobject: shapely.MultiLineString | shapely.LineString,
+    point: shapely.Point
+) -> int:
     """Determines if the point is to the right or left of a multipointobject.
 
     Parameters
@@ -337,18 +446,20 @@ def multipointobject_left_or_right(multipointobject: shapely.MultiLineString | s
     would give the opposite result regardless of wether the point is inside or
     outside.
     """
-    #RIGHT HAND RULE: Right of forwards+++++++; Left of forwards-------
+    # RIGHT HAND RULE: Right of forwards+++++++; Left of forwards-------
 
-    #Vectorial multiplication of both vectors gives us information about the
-    #orientation of the snapped vector
-    #To follow the right hand rule, we must use:
-    #       if z is (-), P is to the right of the spline and direction_y is thus +++++
-    #       if z is (+), P is to the left of the spline and direction_y is thus ----
+    # Vectorial multiplication of both vectors gives us information about the
+    # orientation of the snapped vector
+    # To follow the right hand rule, we must use:
+    #       if z is (-), P is to the right of the spline and direction_y is
+    #       thus +++++
+    #       if z is (+), P is to the left of the spline and direction_y is
+    #       thus ----
     if isinstance(multipointobject, shapely.MultiLineString):
-        #find the closest part
+        # find the closest part
         multipointobject = find_closest_to_point(multipointobject, point)
 
-    #first, we try to parse points directly on the line
+    # first, we try to parse points directly on the line
     if multipointobject.distance(point) == 0:
         return 0
 
@@ -362,29 +473,29 @@ def multipointobject_left_or_right(multipointobject: shapely.MultiLineString | s
     if index == len(points)-1:
         return vector_left_or_right(vectorize([points[-2], points[-1]]), point)
 
-    #at this point we found the closest point, which can be either the
-    #starting point or the end point of a vector. For this reason we
-    #need to test two vectors: the one linking i-1 and i and the one
-    #linking i and i+1
+    # at this point we found the closest point, which can be either the
+    # starting point or the end point of a vector. For this reason we
+    # need to test two vectors: the one linking i-1 and i and the one
+    # linking i and i+1
     cands = [vectorize([points[index-1], points[index]]),
              vectorize([points[index], points[index+1]])]
 
-    #two things can happen here:
+    # two things can happen here:
     #  1 - The vector is placed such that a projection falls on one of
     #      the two vectors without needing the project those vectors
     #      out of their bounds.
     #  2 - The vector needs one of the vectors to be projected.
     #
-    #Convexe junctions prensent an edge case that need to be avoided:
-    #if the point is close to vector1, it could be left of it while
-    #being right of the projection of vector 2 (or the opposite). To
-    #avoid this, we check both sides and decide the outcome based on
-    #the direction of the second vector compared to the first.
+    # Convexe junctions prensent an edge case that need to be avoided:
+    # if the point is close to vector1, it could be left of it while
+    # being right of the projection of vector 2 (or the opposite). To
+    # avoid this, we check both sides and decide the outcome based on
+    # the direction of the second vector compared to the first.
 
-    #if the angle is 360°, there's not much we can do. Either everything
-    #is left, or everything is right, or a combinaison of both and
-    #it entirely depends on how you see the problem at hand. Here we
-    #chose LEFT.
+    # if the angle is 360°, there's not much we can do. Either everything
+    # is left, or everything is right, or a combinaison of both and
+    # it entirely depends on how you see the problem at hand. Here we
+    # chose LEFT.
     if angle_between_vectors(cands[0], cands[1], as_degree=True) == 180:
         angle = -1
     else:
@@ -399,7 +510,11 @@ def multipointobject_left_or_right(multipointobject: shapely.MultiLineString | s
             angle = -1 * vector_left_or_right(cands[0], points[index+1])
     return angle
 
-def distance(line:shapely.LineString, point:shapely.Point)->float:
+
+def distance_line_from_point(
+    line: shapely.LineString,
+    point: shapely.Point
+) -> float:
     """ Compute the geodesic distance (in meters) between a LineString and a
     Point. The distance is computed as the projected distance between the
     LineString and the point.
@@ -414,12 +529,17 @@ def distance(line:shapely.LineString, point:shapely.Point)->float:
     Returns
     -------
     dist_tmp : float
-        The distance between 'point' and the projected point on the line. In meters.
+        The distance between 'point' and the projected point on the line.
+        In meters.
     """
     point_projected = line.interpolate(line.project(point))
-    dist_tmp = geodesic((point.x, point.y), (point_projected.x, point_projected.y)).m
+    dist_tmp = geodesic(
+        (point.x, point.y),
+        (point_projected.x, point_projected.y)
+    ).m
 
     return dist_tmp
+
 
 def polyline_to_vectors(line:shapely.LineString)->List[shapely.LineString]:
     """Divides a polyline in a list of 2-points segments.
@@ -454,6 +574,7 @@ def polyline_to_vectors(line:shapely.LineString)->List[shapely.LineString]:
 
     return vectors
 
+
 def get_closest_sub_line(line:shapely.LineString, point:shapely.Point)->shapely.LineString:
     """Find the closest segment (vector) of a polyline from a given point.
 
@@ -483,7 +604,7 @@ def get_closest_sub_line(line:shapely.LineString, point:shapely.Point)->shapely.
     subsline = map(shapely.LineString, polyline_to_vectors(line))
     points = itertools.repeat(point, line_size-1)
 
-    id_line = np.argmin(list(map(distance, subsline, points)))
+    id_line = np.argmin(list(map(distance_line_from_point, subsline, points)))
     id_line = int(id_line)
     subline = shapely.LineString([line.coords[id_line], line.coords[id_line+1]])
 
@@ -551,6 +672,7 @@ def ckdnearest(gdf_a: geopandas.GeoDataFrame,
          pd.Series(dist, name='dist')], axis=1)
     return gdf
 
+
 def rtreenearest(gdf_a: geopandas.GeoDataFrame,
                  gdf_b: geopandas.GeoDataFrame,
                  gdf_b_cols: List[str] = None
@@ -570,20 +692,27 @@ def rtreenearest(gdf_a: geopandas.GeoDataFrame,
     -------
     gdf : geopandas.GeoDataFrame
         Returns gdfa enriched with columns from gdf_b according to the geometry
-        proximity.
+        proximity and 'dist' columns.
 
     """
-    #TODO : Optimize with pygeos rtree. It can retrieve all points in one call.
     if gdf_b_cols is None:
         raise ValueError("Must provide at least one column name")
     if not isinstance(gdf_b_cols, (list, tuple, np.ndarray)):
         gdf_b_cols = [gdf_b_cols]
 
+    gdf_b = gdf_b.copy()
+    gdf_b.loc[-1, gdf_b_cols] = np.nan
+
     idx = []
     dist_l = []
     for point in gdf_a.geometry.to_list():
         road_i = gdf_b.sindex.nearest(point, return_all=True)[1]
-        roads = gdf_b.loc[road_i, 'geometry'].to_list()
+        roads = gdf_b.loc[road_i, gdf_b.geometry.name].to_list()
+
+        if not roads:
+            idx.append(-1)
+            dist_l.append(-1)
+            continue
 
         dist = np.inf
         id_nearest = 0
@@ -606,5 +735,88 @@ def rtreenearest(gdf_a: geopandas.GeoDataFrame,
                     axis=1)
     return gdf
 
+
+def cut_line_at_dist(line:shapely.LineString,
+                     dist: float) -> Tuple[shapely.LineString, shapely.LineString]:
+    """ Cuts a line in two at a distance from its starting point.
+    This is taken from shapely manual and modified to always return
+    a tuple of two Linestring.
+
+    Parameters
+    ----------
+    line : shapely.LineString
+        Line to cut
+    distance : float
+        Cuting distance
+
+    Returns
+    -------
+    Tuple[shapely.LineString, shapely.LineString]
+        First and last half of the Line cut at distance `dist`
+    """
+    if np.round(dist,0) <= 0.0:
+        return [[], shapely.LineString(line)]
+    if np.ceil(dist) >= line.length:
+        return [shapely.LineString(line), []]
+
+    coords = list(line.coords)
+    for i, p in enumerate(coords):
+        point_dist = line.project(shapely.Point(p))
+        if point_dist < dist:
+            continue
+        if point_dist == dist:
+            return [
+                shapely.LineString(coords[:i+1]),
+                shapely.LineString(coords[i:])
+            ]
+
+        cp = line.interpolate(dist)
+        return [
+            shapely.LineString(coords[:i] + [(cp.x, cp.y)]),
+            shapely.LineString([(cp.x, cp.y)] + coords[i:])
+        ]
+
+def split_line_with_points(line:shapely.LineString,
+                           points:List[shapely.Point]) -> List[shapely.LineString]:
+    """Splits a line string in several segments considering a list of points.
+
+    The points used to cut the line are assumed to be in the line string
+    and given in the order of appearance they have in the line string.
+
+    Taken from https://stackoverflow.com/a/39574007 with minor modifications.
+
+    Parameters
+    ----------
+    line: shapely.LineString
+        Line to split
+    points: List[shapely.Point]
+        Collection of point where to split the linestring. Should be in
+        sequential order.
+
+    Returns
+    -------
+    List[shapely.LineString]
+        Lines segments cut at each point
+
+    Example
+    -------
+    >>> line = LineString( [(1,2), (8,7), (4,5), (2,4), (4,7), (8,5), (9,18),
+    ...        (1,2),(12,7),(4,5),(6,5),(4,9)] )
+    >>> points = [Point(2,4), Point(9,18), Point(6,5)]
+    >>> [str(s) for s in split_line_with_points(line, points)]
+    ['LINESTRING (1 2, 8 7, 4 5, 2 4)', 'LINESTRING (2 4, 4 7, 8 5, 9 18)',
+    'LINESTRING (9 18, 1 2, 12 7, 4 5, 6 5)', 'LINESTRING (6 5, 4 9)']
+
+    """
+    segments = []
+    current_line = line
+    for p in points:
+        d = current_line.project(p)
+        seg, current_line = cut_line_at_dist(current_line, d)
+        segments.append(seg)
+    segments.append(current_line)
+    return segments
+
+
 vectorized_r_o_l = np.vectorize(multipointobject_left_or_right)
-vectorized_dist = np.vectorize(distance)
+vectorized_dist = np.vectorize(distance_line_from_point)
