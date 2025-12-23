@@ -2,6 +2,9 @@
 """
 import json
 import logging
+import argparse
+import glob
+import os
 
 import geopandas as gpd
 from cygne.core.inventory import Inventory
@@ -10,27 +13,45 @@ from cygne.io.mtl_opendata import read_mtl_open_data
 logger = logging.getLogger(__name__)
 
 
+def get_latest_file(directory: str, pattern: str) -> str:
+    """Find the latest file matching a pattern in a directory."""
+    files = glob.glob(os.path.join(directory, pattern))
+    if not files:
+        raise FileNotFoundError(
+            f"No matching file found for pattern '{pattern}' in '{directory}'. "
+            "Please download the data from Montreal Open Data Portal."
+        )
+    return max(files, key=os.path.getctime)
+
+
 def main():
     """ Main
     """
+    parser = argparse.ArgumentParser(description='Inventory processing')
+    parser.add_argument('--inventaire', type=str, help='Path to inventaire file')
+    parser.add_argument('--support', type=str, help='Path to support file')
+    parser.add_argument('--panneau', type=str, help='Path to panneau file')
+    parser.add_argument('--period', type=str, help='Path to period file')
+    args, _ = parser.parse_known_args()
+
+    data_dir = './data/inventaire'
+
+    try:
+        inv_path = args.inventaire or get_latest_file(data_dir, 'inventaire_lapi_*.geojson')
+        sup_path = args.support or get_latest_file(data_dir, 'rp_support_*.geojson')
+        pan_path = args.panneau or get_latest_file(data_dir, 'rp_panneau_*.geojson')
+        per_path = args.period or get_latest_file(data_dir, 'rp_panneau_periode_*.geojson')
+    except FileNotFoundError as e:
+        logger.error(e)
+        return
 
     logger.info('Query data')
-    inventaire = gpd.read_file(
-        './data/inventaire/inventaire_lapi_20240808.geojson',
-        encoding='utf-8'
-    )
-    support = gpd.read_file(
-        './data/inventaire/rp_support_20240809.geojson',
-        encoding='utf-8'
-    )
-    panneau = gpd.read_file(
-        './data/inventaire/rp_panneau_20240809.geojson',
-        encoding='utf-8'
-    )
-    period = gpd.read_file(
-        './data/inventaire/rp_panneau_periode_20240809.geojson',
-        encoding='utf-8'
-    )
+    logger.info(f"Using inventaire: {inv_path}")
+    inventaire = gpd.read_file(inv_path, encoding='utf-8')
+    support = gpd.read_file(sup_path, encoding='utf-8')
+    panneau = gpd.read_file(pan_path, encoding='utf-8')
+    period = gpd.read_file(per_path, encoding='utf-8')
+
     geobase = read_mtl_open_data(
         'https://data.montreal.ca/dataset/' +
         '984f7a68-ab34-4092-9204-4bdfcca767c5/' +
@@ -79,4 +100,5 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     main()

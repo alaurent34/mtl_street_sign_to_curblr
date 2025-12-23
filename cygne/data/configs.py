@@ -16,6 +16,8 @@ GEO_LIMIT_NAME = 'geo_limit'
 GEO_LIMIT_PATH = 'data/limit.geojson'
 
 PAID_PARKING_NAME = 'paid_parking'
+PAID_PARKING_URL = 'https://www.agencemobilitedurable.ca/images/data/Places.csv'
+
 PAID_PARKING_QUERY = '''
     SELECT DISTINCT
       SK_D_Place,
@@ -78,7 +80,17 @@ SOURCE_FILES = [
             'args': {}
         }
     },
+    {
+        'name': PAID_PARKING_NAME,
+        'type': 'csv',
+        'source': {
+            'type': 'remote',
+            'path': PAID_PARKING_URL,
+            'args': {}
+        }
+    },
 ]
+
 
 SOURCE_SQL = [
     {
