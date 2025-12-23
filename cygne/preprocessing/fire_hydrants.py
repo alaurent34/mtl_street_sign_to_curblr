@@ -33,7 +33,7 @@ def process_fire_hydrants(
 
     data = data.copy()
     roads = roads.copy()
-    roads = roads.rename_geometry('road_geom')
+    # roads = roads.rename_geometry('road_geom')
 
     if not limits.empty:
         limit_cols = list(limits.columns)
@@ -50,6 +50,7 @@ def process_fire_hydrants(
 
     # Compute the closest road to each sig_sta
     roads = roads.to_crs(MONTREAL_CRS)
+    roads['road_geom'] = roads.geometry
     data = data.to_crs(MONTREAL_CRS)
     data = gpd.sjoin_nearest(
         data,
@@ -84,5 +85,8 @@ def process_fire_hydrants(
         linear_ref_field='dist_on_roads',
         roads_id_col='ID_TRC'
     )
+
+    data = data.set_geometry('lines_geom')
+    data = data.drop(columns=['road_geom', 'line_geom', 'geometry'], errors='ignore')
 
     return data

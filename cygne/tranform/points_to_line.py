@@ -450,7 +450,7 @@ def buffered_point_to_ligne(
     half_meter = meters / 2
     first_lr = (data[linear_ref_field] - half_meter).values
     last_lr = (data[linear_ref_field] + half_meter).values
-    lines = data['lines_geom'].values
+    lines = data['line_geom'].values
 
     first_point = v_interpolate(lines, first_lr)
     last_point = v_interpolate(lines, last_lr)

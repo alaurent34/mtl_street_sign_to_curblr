@@ -86,7 +86,7 @@ def fetch_data(
         if file_type == 'json':
             data = pd.read_json(io.BytesIO(content))
         elif file_type == 'csv':
-            data = pd.read_csv(io.StringIO(content.decode('utf-8')))
+            data = pd.read_csv(io.StringIO(content.decode('latin1')))
         elif file_type == 'geofile':
             data = gpd.read_file(io.BytesIO(content))
         else:
@@ -173,8 +173,6 @@ def load_sql_data(data_sources):
 
 def load_data():
     file_data = load_file_data(SOURCE_FILES)
-    # sql_data = load_sql_data(SOURCE_SQL) # FIXME : An error occurred: (20009, b'DB-Lib error message 20009, severity 9:\nUnable to connect: Adaptive Server is unavailable or does not exist (prisqlbiprod01)\n')
-    # return {**file_data, **sql_data}
     return file_data
 
 

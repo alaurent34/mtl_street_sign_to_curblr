@@ -23,13 +23,10 @@ Before you begin, ensure you have the following installed:
 ## Usage
 
 The script is run by `inventory_transformation.py`. The file `signalec.py` is a version of the code made to convert SIGNALEC data into CurbLR.
-
-## Example
-
-Ensure you have an active internet connection to fetch the data from Montreal's Open Data portal. Here’s an example of how to run the script to preprocess the data and convert it to CurbLR:
+The `inventory_transformation.py` script now supports dynamic file paths. It will automatically look for the latest files in `./data/inventaire/` matching the expected patterns. Alternatively, you can specify files manually:
 
 ```bash
-python3 inventory_transformation.py 
+python inventory_transformation.py --inventaire path/to/inventaire.geojson --support path/to/support.geojson --panneau path/to/panneau.geojson --period path/to/period.geojson
 ```
 
 This command will first preprocess the data and then start the processing to convert the Montreal parking sign data into the CurbLR format.
